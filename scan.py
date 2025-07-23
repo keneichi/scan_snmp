@@ -4,8 +4,8 @@ from pysnmp.hlapi import *
 import csv
 import socket
 
-# Réseau à scanner
-NETWORK = "10.10.101.0/24"
+# Réseaux à scanner
+NETWORKS = ["10.10.101.0/24", "10.10.102.0/24", "10.10.103.0/24"]
 
 # Community strings à tester
 COMMUNITIES = ["public", "private", "4X8NVSa"]
@@ -22,12 +22,11 @@ def discover_snmp_hosts(network):
     nm = nmap.PortScanner()
     nm.scan(hosts=network, arguments='-sU -p161 --open')
     hosts = nm.all_hosts()
-    print(f"[+] {len(hosts)} hôte(s) SNMP détecté(s) : {hosts}")
+    print(f"[+] {len(hosts)} hôte(s) SNMP détecté(s) sur {network}")
     return hosts
 
 
 def snmp_get(ip, community, oid):
-    """Récupère une valeur SNMP (GET) sur une IP donnée."""
     iterator = getCmd(
         SnmpEngine(),
         CommunityData(community, mpModel=0),
@@ -39,15 +38,14 @@ def snmp_get(ip, community, oid):
     if errorIndication or errorStatus:
         return None
     for varBind in varBinds:
-        return str(varBind[1])  # valeur SNMP
+        return str(varBind[1])
 
 
 def test_communities(ip):
-    """Teste les communities et retourne (community, sysName, sysDescr) si OK."""
     for community in COMMUNITIES:
         sysdescr = snmp_get(ip, community, '1.3.6.1.2.1.1.1.0')  # sysDescr.0
         if sysdescr:
-            sysname = snmp_get(ip, community, '1.3.6.1.2.1.1.5.0') or "N/A"  # sysName.0
+            sysname = snmp_get(ip, community, '1.3.6.1.2.1.1.5.0') or "N/A"
             return community, sysname, sysdescr
     return None, None, None
 
@@ -60,19 +58,21 @@ def reverse_dns(ip):
 
 
 def main():
-    hosts = discover_snmp_hosts(NETWORK)
     results = []
 
-    for ip in hosts:
-        hostname = reverse_dns(ip)
-        print(f"[*] Test SNMP sur {ip} ({hostname})...")
-        community, sysname, sysdescr = test_communities(ip)
-        if community:
-            print(f"[+] {ip} ({hostname}) - SNMP OK (community: {community}, sysName: {sysname})")
-            results.append((ip, hostname, sysname, sysdescr, community))
-        else:
-            print(f"[-] {ip} ({hostname}) - SNMP actif mais community inconnue")
-            results.append((ip, hostname, "N/A", "N/A", "inconnue"))
+    for network in NETWORKS:
+        hosts = discover_snmp_hosts(network)
+
+        for ip in hosts:
+            hostname = reverse_dns(ip)
+            print(f"[*] Test SNMP sur {ip} ({hostname})...")
+            community, sysname, sysdescr = test_communities(ip)
+            if community:
+                print(f"[+] {ip} ({hostname}) - SNMP OK (community: {community}, sysName: {sysname})")
+                results.append((ip, hostname, sysname, sysdescr, community))
+            else:
+                print(f"[-] {ip} ({hostname}) - SNMP actif mais community inconnue")
+                results.append((ip, hostname, "N/A", "N/A", "inconnue"))
 
     with open(OUTPUT_FILE, "w", newline='') as f:
         writer = csv.writer(f)
