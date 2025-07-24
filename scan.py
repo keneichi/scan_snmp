@@ -5,7 +5,7 @@ import csv
 import socket
 
 # Réseaux à scanner
-NETWORKS = ["10.10.101.0/24", "10.10.102.0/24", "10.10.103.0/24"]
+NETWORKS = ["192.168.10.0/24","192.168.70.0/24"]
 
 # Community strings à tester
 COMMUNITIES = ["public", "private", "4X8NVSa"]
@@ -56,12 +56,11 @@ def reverse_dns(ip):
     except socket.herror:
         return "N/A"
 
-
 def main():
-    results = []
-
     for network in NETWORKS:
+        print(f"\n=== Scan du réseau {network} ===")
         hosts = discover_snmp_hosts(network)
+        results = []
 
         for ip in hosts:
             hostname = reverse_dns(ip)
@@ -74,13 +73,14 @@ def main():
                 print(f"[-] {ip} ({hostname}) - SNMP actif mais community inconnue")
                 results.append((ip, hostname, "N/A", "N/A", "inconnue"))
 
-    with open(OUTPUT_FILE, "w", newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(["IP", "Hostname", "sysName", "sysDescr", "Community"])
-        writer.writerows(results)
+        # On génère un nom de fichier basé sur le sous-réseau
+        filename = f"snmp_report_{network.replace('/', '_')}.csv"
+        with open(filename, "w", newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["IP", "Hostname", "sysName", "sysDescr", "Community"])
+            writer.writerows(results)
 
-    print(f"[+] Rapport généré : {OUTPUT_FILE}")
-
+        print(f"[+] Rapport généré : {filename}")
 
 if __name__ == "__main__":
     main()
